@@ -8,6 +8,8 @@ import java.util.UUID;
 public record WorkoutResponse(
         UUID id,
         Instant startedAt,
+        Instant endedAt,
+        Long durationSeconds,
         WorkoutStatus status,
         String notes
 ) {

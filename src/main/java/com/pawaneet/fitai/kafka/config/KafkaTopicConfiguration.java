@@ -15,4 +15,12 @@ public class KafkaTopicConfiguration {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic workoutEndedTopic(KafkaTopicProperties topics) {
+        return TopicBuilder.name(topics.workoutEnded())
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
 }
