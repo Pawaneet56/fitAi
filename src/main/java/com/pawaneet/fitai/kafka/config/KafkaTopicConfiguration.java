@@ -23,4 +23,19 @@ public class KafkaTopicConfiguration {
                 .replicas(1)
                 .build();
     }
+
+    @Bean
+    public NewTopic exerciseAddedTopic(KafkaTopicProperties topics) {
+        return TopicBuilder.name(topics.exerciseAdded())
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    NewTopic setAddedTopic(KafkaTopicProperties topics) {
+        return TopicBuilder
+                .name(topics.setAdded())
+                .build();
+    }
 }

@@ -51,3 +51,5 @@ app:
     topics:
       workout-started: workout-started
       workout-ended: workout-ended
+      exercise-added: exercise-added
+      set-added: set-added

@@ -1,5 +1,6 @@
 package com.pawaneet.fitai.analytics.service;
 
+import com.pawaneet.fitai.workout.event.ExerciseAddedEvent;
 import com.pawaneet.fitai.workout.event.WorkoutEndedEvent;
 import com.pawaneet.fitai.workout.event.WorkoutStartedEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,17 @@ public class AnalyticsService {
                 event.workoutId(),
                 event.endedAt(),
                 event.durationSeconds()
+        );
+    }
+
+    public void handleExerciseAdded(ExerciseAddedEvent event) {
+
+        log.info(
+                "Analytics received exercise {} ({}) added to workout {} at order {}",
+                event.exerciseName(),
+                event.exerciseId(),
+                event.workoutId(),
+                event.orderIndex()
         );
     }
 }

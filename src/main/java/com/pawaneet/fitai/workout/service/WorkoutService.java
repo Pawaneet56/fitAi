@@ -33,12 +33,7 @@ public class WorkoutService {
     public WorkoutResponse startWorkout(StartWorkoutRequest request) {
         Workout workout = Workout.builder().startedAt(Instant.now()).status(WorkoutStatus.IN_PROGRESS).notes(request.notes()).build();
         Workout savedWorkout = workoutRepository.save(workout);
-        workoutEventProducer.publishWorkoutStarted(
-                new WorkoutStartedEvent(
-                        savedWorkout.getId(),
-                        savedWorkout.getStartedAt()
-                )
-        );
+        workoutEventProducer.publishWorkoutStarted(savedWorkout);
 
         return workoutMapper.toResponse(savedWorkout);
     }
@@ -69,16 +64,8 @@ public class WorkoutService {
         workout.setStatus(WorkoutStatus.COMPLETED);
 
         Workout savedWorkout = workoutRepository.save(workout);
-        long durationSeconds = Duration.between(savedWorkout.getStartedAt(), savedWorkout.getEndedAt()).toSeconds();
 
-        workoutEventProducer.publishWorkoutEnded(
-                new WorkoutEndedEvent(
-                        savedWorkout.getId(),
-                        savedWorkout.getStartedAt(),
-                        savedWorkout.getEndedAt(),
-                        durationSeconds
-                )
-        );
+        workoutEventProducer.publishWorkoutEnded(savedWorkout);
 
         return workoutMapper.toResponse(savedWorkout);
     }
