@@ -86,13 +86,23 @@ The application is currently a **modular monolith**.
 
 Kafka is used for asynchronous processing within the same application.
 
+The current modules include workout functionality, Kafka integration, and analytics. The domain is modeled around a hierarchy:
+
+```text
+Workout
+  └── WorkoutExercise
+        └── WorkoutSet
+```
+
+A workout owns multiple exercises, and each exercise owns multiple sets.
+
 ---
 
 # Current Package Structure
 
 com.pawaneet.fitai
 
-```
+```text
 analytics/
 common/
 config/
@@ -112,6 +122,64 @@ workout/
     service/
     event/
 ```
+
+---
+
+# Domain Model
+
+## Workout
+
+A workout contains:
+
+- `id`
+- `startedAt`
+- `endedAt`
+- `status`
+- `notes`
+- collection of `WorkoutExercise`
+
+Workout-level `durationInSeconds` is **not stored as an entity field**. Duration is derived from `startedAt` and `endedAt` when required.
+
+---
+
+## WorkoutExercise
+
+A `WorkoutExercise` belongs to one `Workout`.
+
+Fields include:
+
+- `id`
+- `workout`
+- `exerciseName`
+- `orderIndex`
+- collection of `WorkoutSet`
+
+Database constraint:
+
+- `(workout_id, order_index)` must be unique.
+
+`orderIndex` is assigned by the backend automatically based on the current maximum order for that workout.
+
+The client therefore does not need to provide `orderIndex` when adding an exercise.
+
+---
+
+## WorkoutSet
+
+A `WorkoutSet` belongs to one `WorkoutExercise`.
+
+Current set-level data includes:
+
+- `setNumber`
+- `weight`
+- `reps`
+- `rir`
+- optional `durationSeconds`
+- optional `notes`
+
+`setNumber` is assigned automatically per exercise.
+
+`durationSeconds` is intentionally optional. A more advanced optional time-tracking model may be introduced in the future if needed.
 
 ---
 
@@ -141,38 +209,53 @@ workout/
 - WorkoutExercise controller
 - WorkoutSet controller
 - Workout duration calculation
+- Automatic exercise ordering
+- Automatic set numbering
+- Validation for workout/exercise/set requests
+- Prevent adding exercises/sets to completed workouts where applicable
 
 ---
 
 ## Kafka
 
-Kafka Producer
+Kafka Producers:
 
-- WorkoutEventProducer
+- `WorkoutEventProducer`
+- `ExerciseEventProducer`
 
-Kafka Consumer
+Kafka Consumers:
 
-- WorkoutStartedConsumer
-- WorkoutEndedConsumer
+- `WorkoutStartedConsumer`
+- `WorkoutEndedConsumer`
+- `ExerciseAddedConsumer`
 
-Kafka Topic
+Kafka Topics:
 
-- workout-started
-- workout-ended
+- `workout-started`
+- `workout-ended`
+- `exercise-added`
 
-Kafka configuration uses NewTopic beans instead of relying on broker auto-topic creation.
+Kafka configuration uses `NewTopic` beans instead of relying on broker auto-topic creation.
 
----
+Kafka publishing is encapsulated inside producer classes. Business services should not interact directly with `KafkaTemplate`.
 
-## Analytics
+Kafka event payloads are represented by dedicated event types rather than exposing JPA entities directly as Kafka contracts.
 
-AnalyticsService receives WorkoutStartedEvent and currently logs receipt of the event.
-AnalyticsService receives WorkoutEndedEvent and currently logs workout completion duration.
+Current event examples include:
+
+- `WorkoutStartedEvent`
+- `WorkoutEndedEvent`
+- `ExerciseAddedEvent`
+
+Kafka messages use the workout ID as the message key for workout/exercise events where appropriate.
 
 ---
 
 # Event Flow
 
+## Start Workout
+
+```text
 POST /api/workouts
 
 ↓
@@ -189,11 +272,15 @@ Save Workout
 
 ↓
 
+WorkoutEventProducer
+
+↓
+
 Publish WorkoutStartedEvent
 
 ↓
 
-Kafka Topic
+Kafka topic: workout-started
 
 ↓
 
@@ -202,9 +289,13 @@ WorkoutStartedConsumer
 ↓
 
 AnalyticsService
+```
 
 ---
 
+## End Workout
+
+```text
 PATCH /api/workouts/{workoutId}/end
 
 ↓
@@ -225,7 +316,15 @@ Mark Workout COMPLETED
 
 ↓
 
+Set endedAt
+
+↓
+
 Calculate duration
+
+↓
+
+WorkoutEventProducer
 
 ↓
 
@@ -233,7 +332,7 @@ Publish WorkoutEndedEvent
 
 ↓
 
-Kafka Topic
+Kafka topic: workout-ended
 
 ↓
 
@@ -242,6 +341,295 @@ WorkoutEndedConsumer
 ↓
 
 AnalyticsService
+```
+
+---
+
+## Add Exercise
+
+```text
+POST /api/workouts/{workoutId}/exercises
+
+↓
+
+WorkoutExerciseController
+
+↓
+
+WorkoutExerciseService
+
+↓
+
+Load Workout
+
+↓
+
+Validate workout state
+
+↓
+
+Determine next orderIndex
+
+↓
+
+Save WorkoutExercise
+
+↓
+
+ExerciseEventProducer
+
+↓
+
+Publish ExerciseAddedEvent
+
+↓
+
+Kafka topic: exercise-added
+
+↓
+
+ExerciseAddedConsumer
+
+↓
+
+AnalyticsService
+```
+
+---
+
+## Add Set
+
+```text
+POST /api/workouts/{workoutId}/exercises/{exerciseId}/sets
+
+↓
+
+WorkoutSetController
+
+↓
+
+WorkoutSetService
+
+↓
+
+Load workout/exercise
+
+↓
+
+Validate workout state
+
+↓
+
+Determine next setNumber
+
+↓
+
+Save WorkoutSet
+
+↓
+
+Return WorkoutSetResponse
+```
+
+Set events can be introduced later when there is a clear consumer/use case for them.
+
+---
+
+# Analytics
+
+`AnalyticsService` currently receives and logs:
+
+- `WorkoutStartedEvent`
+- `WorkoutEndedEvent`
+- `ExerciseAddedEvent`
+
+The current implementation is intentionally simple. Analytics will eventually become a real business capability rather than only logging consumed events.
+
+---
+
+# Current APIs
+
+## Start Workout
+
+POST
+
+```text
+/api/workouts
+```
+
+Request:
+
+```json
+{
+  "notes": "Push Day"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "...",
+  "startedAt": "...",
+  "endedAt": null,
+  "durationSeconds": null,
+  "status": "IN_PROGRESS",
+  "notes": "Push Day"
+}
+```
+
+`durationSeconds` in the REST response is derived data; it is not stored on the `Workout` entity.
+
+---
+
+## End Workout
+
+PATCH
+
+```text
+/api/workouts/{workoutId}/end
+```
+
+Response:
+
+```json
+{
+  "id": "...",
+  "startedAt": "...",
+  "endedAt": "...",
+  "durationSeconds": 3600,
+  "status": "COMPLETED",
+  "notes": "Push Day"
+}
+```
+
+---
+
+## Get Workout
+
+GET
+
+```text
+/api/workouts/{workoutId}
+```
+
+Response:
+
+```json
+{
+  "id": "...",
+  "startedAt": "...",
+  "endedAt": "...",
+  "durationSeconds": 3600,
+  "status": "COMPLETED",
+  "notes": "Push Day"
+}
+```
+
+---
+
+## List Workouts
+
+GET
+
+```text
+/api/workouts
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "...",
+    "startedAt": "...",
+    "endedAt": null,
+    "durationSeconds": null,
+    "status": "IN_PROGRESS",
+    "notes": "Push Day"
+  }
+]
+```
+
+Results are ordered by `startedAt` descending.
+
+---
+
+## Add Workout Exercise
+
+POST
+
+```text
+/api/workouts/{workoutId}/exercises
+```
+
+Request:
+
+```json
+{
+  "exerciseName": "Bench Press"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "...",
+  "exerciseName": "Bench Press",
+  "orderIndex": 1
+}
+```
+
+The backend automatically determines `orderIndex`.
+
+For a second exercise:
+
+```json
+{
+  "exerciseName": "Incline Bench Press"
+}
+```
+
+the response contains `orderIndex: 2`.
+
+---
+
+## Add Workout Set
+
+POST
+
+```text
+/api/workouts/{workoutId}/exercises/{exerciseId}/sets
+```
+
+Request:
+
+```json
+{
+  "weight": 80,
+  "reps": 8,
+  "rir": 2,
+  "durationSeconds": null,
+  "notes": "Felt easy"
+}
+```
+
+Response:
+
+```json
+{
+  "id": "...",
+  "setNumber": 1,
+  "weight": 80,
+  "reps": 8,
+  "rir": 2,
+  "durationSeconds": null,
+  "notes": "Felt easy"
+}
+```
+
+Sets are ordered per exercise using an automatically incremented `setNumber`.
 
 ---
 
@@ -265,6 +653,8 @@ Repository
 
 Entities are never exposed through REST APIs.
 
+DTOs are used for request/response contracts.
+
 ---
 
 ## Repository Pattern
@@ -281,9 +671,9 @@ Converts Entity ↔ DTO.
 
 ## Producer Pattern
 
-Kafka publishing is encapsulated in WorkoutEventProducer.
+Kafka publishing is encapsulated in producer classes such as `WorkoutEventProducer` and `ExerciseEventProducer`.
 
-Business services never interact with KafkaTemplate directly.
+Business services do not interact with `KafkaTemplate` directly.
 
 ---
 
@@ -339,6 +729,8 @@ Over:
 - Kafka listeners should remain thin.
 - Mapper handles object conversion.
 - Repository handles persistence only.
+- Kafka event contracts should be explicit and independent of JPA entities.
+- Avoid exposing persistence models as API or event contracts.
 
 ---
 
@@ -360,200 +752,37 @@ Assume intermediate knowledge of Spring Boot and Java.
 
 # Current Infrastructure
 
-Docker Compose
-
-Services:
+Docker Compose services:
 
 - PostgreSQL
 - Apache Kafka (KRaft)
 
-Spring Boot connects to:
+Spring Boot connects locally to:
 
 Postgres
 
-```
+```text
 localhost:5432
 ```
 
 Kafka
 
-```
+```text
 localhost:9092
 ```
 
 ---
 
-# Current APIs
+# Current Validation / Business Rules
 
-## Start Workout
-
-POST
-
-```
-/api/workouts
-```
-
-Request
-
-```json
-{
-  "notes": "Push Day"
-}
-```
-
-Response
-
-```json
-{
-  "id": "...",
-  "startedAt": "...",
-  "endedAt": null,
-  "durationSeconds": null,
-  "status": "IN_PROGRESS",
-  "notes": "Push Day"
-}
-```
-
----
-
-## End Workout
-
-PATCH
-
-```
-/api/workouts/{workoutId}/end
-```
-
-Response
-
-```json
-{
-  "id": "...",
-  "startedAt": "...",
-  "endedAt": "...",
-  "durationSeconds": 3600,
-  "status": "COMPLETED",
-  "notes": "Push Day"
-}
-```
-
----
-
-## Get Workout
-
-GET
-
-```
-/api/workouts/{workoutId}
-```
-
-Response
-
-```json
-{
-  "id": "...",
-  "startedAt": "...",
-  "endedAt": "...",
-  "durationSeconds": 3600,
-  "status": "COMPLETED",
-  "notes": "Push Day"
-}
-```
-
----
-
-## List Workouts
-
-GET
-
-```
-/api/workouts
-```
-
-Response
-
-```json
-[
-  {
-    "id": "...",
-    "startedAt": "...",
-    "endedAt": null,
-    "durationSeconds": null,
-    "status": "IN_PROGRESS",
-    "notes": "Push Day"
-  }
-]
-```
-
-Results are ordered by `startedAt` descending.
-
----
-
-## Add Workout Exercise
-
-POST
-
-```
-/api/workouts/{workoutId}/exercises
-```
-
-Request
-
-```json
-{
-  "exerciseName": "Bench Press"
-}
-```
-
-Response
-
-```json
-{
-  "id": "...",
-  "exerciseName": "Bench Press",
-  "orderIndex": 1
-}
-```
-
-Exercises are ordered per workout using an automatically incremented `orderIndex`.
-
----
-
-## Add Workout Set
-
-POST
-
-```
-/api/workouts/{workoutId}/exercises/{exerciseId}/sets
-```
-
-Request
-
-```json
-{
-  "weight": 80,
-  "reps": 8,
-  "rir": 2,
-  "durationSeconds": null,
-  "notes": "Felt easy"
-}
-```
-
-Response
-
-```json
-{
-  "id": "...",
-  "setNumber": 1,
-  "weight": 80,
-  "reps": 8,
-  "rir": 2,
-  "durationSeconds": null,
-  "notes": "Felt easy"
-}
-```
-
-Sets are ordered per exercise using an automatically incremented `setNumber`.
+- Workout must exist before exercises can be added.
+- Exercises cannot be added to a completed workout.
+- Sets cannot be added where the associated workout is completed.
+- Exercise name is required.
+- Exercise name has a maximum length of 255 characters.
+- Exercise ordering is controlled by the backend.
+- Set numbering is controlled by the backend.
+- `durationSeconds` at the set level is optional.
 
 ---
 
@@ -568,7 +797,7 @@ Sets are ordered per exercise using an automatically incremented `setNumber`.
 
 ---
 
-## Phase 2 (Current)
+## Phase 2
 
 - ✅ End Workout
 - ✅ WorkoutEndedEvent
@@ -577,13 +806,14 @@ Sets are ordered per exercise using an automatically incremented `setNumber`.
 
 ---
 
-## Phase 3
+## Phase 3 (Current)
 
 - ✅ Exercise logging
 - ✅ Sets
-- Reps
-- Weight
-- Personal records
+- ✅ Reps
+- ✅ Weight
+- ✅ RIR
+- ⬜ Personal records
 
 ---
 
