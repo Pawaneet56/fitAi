@@ -1,17 +1,14 @@
 package com.pawaneet.fitai.workout.controller;
 
 import com.pawaneet.fitai.workout.dto.AddWorkoutSetRequest;
+import com.pawaneet.fitai.workout.dto.UpdateWorkoutSetRequest;
 import com.pawaneet.fitai.workout.dto.WorkoutSetResponse;
 import com.pawaneet.fitai.workout.service.WorkoutSetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -31,5 +28,24 @@ public class WorkoutSetController {
         WorkoutSetResponse response = workoutSetService.addSet(workoutId, exerciseId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping(
+            "/{setId}"
+    )
+    public ResponseEntity<WorkoutSetResponse> updateSet(
+            @PathVariable UUID workoutId,
+            @PathVariable UUID exerciseId,
+            @PathVariable UUID setId,
+            @Valid @RequestBody UpdateWorkoutSetRequest request
+    ) {
+        return ResponseEntity.ok(
+                workoutSetService.updateSet(
+                        workoutId,
+                        exerciseId,
+                        setId,
+                        request
+                )
+        );
     }
 }

@@ -7,11 +7,17 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface WorkoutSetRepository extends JpaRepository<WorkoutSet, UUID> {
 
+
+    Optional<WorkoutSet> findByIdAndExerciseId(
+            UUID setId,
+            UUID exerciseId
+    );
 
     @Query("""
             select coalesce(max(workoutSet.setNumber), 0)
