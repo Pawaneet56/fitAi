@@ -10,6 +10,7 @@ import com.pawaneet.fitai.workout.exception.ConflictException;
 import com.pawaneet.fitai.workout.exception.ExerciseNotFoundException;
 import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutSetMapper;
+import com.pawaneet.fitai.workout.producer.SetEventProducer;
 import com.pawaneet.fitai.workout.repository.WorkoutExerciseRepository;
 import com.pawaneet.fitai.workout.repository.WorkoutRepository;
 import com.pawaneet.fitai.workout.repository.WorkoutSetRepository;
@@ -46,11 +47,14 @@ class WorkoutSetServiceTest {
     @Mock
     private WorkoutSetMapper workoutSetMapper;
 
+    @Mock
+    private SetEventProducer setEventProducer;
+
     @InjectMocks
     private WorkoutSetService workoutSetService;
 
     @Test
-    void addSetCreatesSetWithNextSetNumber() {
+    void addSetCreatesSetAndPublishesEvent() {
         UUID workoutId = UUID.randomUUID();
         UUID exerciseId = UUID.randomUUID();
         UUID setId = UUID.randomUUID();
@@ -93,6 +97,8 @@ class WorkoutSetServiceTest {
         assertThat(savedWorkoutSet.getRir()).isEqualTo(2);
         assertThat(savedWorkoutSet.getNotes()).isEqualTo("Felt easy");
         assertThat(exercise.getSets()).contains(savedWorkoutSet);
+
+        verify(setEventProducer).publishSetAdded(savedWorkoutSet);
     }
 
     @Test
@@ -137,6 +143,7 @@ class WorkoutSetServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutSetRepository, never()).save(any(WorkoutSet.class));
+        verify(setEventProducer, never()).publishSetAdded(any());
     }
 
     @Test
@@ -158,6 +165,7 @@ class WorkoutSetServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutSetRepository, never()).save(any(WorkoutSet.class));
+        verify(setEventProducer, never()).publishSetAdded(any());
     }
 
     @Test
@@ -179,5 +187,6 @@ class WorkoutSetServiceTest {
                 .hasMessageContaining(exerciseId.toString());
 
         verify(workoutSetRepository, never()).save(any(WorkoutSet.class));
+        verify(setEventProducer, never()).publishSetAdded(any());
     }
 }

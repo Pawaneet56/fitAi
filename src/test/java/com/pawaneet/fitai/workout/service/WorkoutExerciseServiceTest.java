@@ -5,9 +5,11 @@ import com.pawaneet.fitai.workout.dto.WorkoutExerciseResponse;
 import com.pawaneet.fitai.workout.entity.Workout;
 import com.pawaneet.fitai.workout.entity.WorkoutExercise;
 import com.pawaneet.fitai.workout.entity.WorkoutStatus;
+import com.pawaneet.fitai.workout.event.ExerciseAddedEvent;
 import com.pawaneet.fitai.workout.exception.CannotAddExerciseToCompletedWorkoutException;
 import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutExerciseMapper;
+import com.pawaneet.fitai.workout.producer.ExerciseEventProducer;
 import com.pawaneet.fitai.workout.repository.WorkoutExerciseRepository;
 import com.pawaneet.fitai.workout.repository.WorkoutRepository;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,9 @@ class WorkoutExerciseServiceTest {
 
     @Mock
     private WorkoutExerciseMapper workoutExerciseMapper;
+
+    @Mock
+    private ExerciseEventProducer exerciseEventProducer;
 
     @InjectMocks
     private WorkoutExerciseService workoutExerciseService;
@@ -79,6 +84,16 @@ class WorkoutExerciseServiceTest {
         assertThat(savedWorkoutExercise.getWorkout()).isSameAs(workout);
         assertThat(savedWorkoutExercise.getExerciseName()).isEqualTo("Bench Press");
         assertThat(savedWorkoutExercise.getOrderIndex()).isEqualTo(3);
+
+        ArgumentCaptor<ExerciseAddedEvent> eventCaptor = ArgumentCaptor.forClass(ExerciseAddedEvent.class);
+        verify(exerciseEventProducer).publishExerciseAdded(eventCaptor.capture());
+
+        ExerciseAddedEvent event = eventCaptor.getValue();
+        assertThat(event.workoutId()).isEqualTo(workoutId);
+        assertThat(event.exerciseId()).isEqualTo(workoutExerciseId);
+        assertThat(event.exerciseName()).isEqualTo("Bench Press");
+        assertThat(event.orderIndex()).isEqualTo(3);
+        assertThat(event.createdAt()).isNotNull();
     }
 
     @Test
@@ -114,6 +129,7 @@ class WorkoutExerciseServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutExerciseRepository, never()).save(any(WorkoutExercise.class));
+        verify(exerciseEventProducer, never()).publishExerciseAdded(any(ExerciseAddedEvent.class));
     }
 
     @Test
@@ -134,5 +150,6 @@ class WorkoutExerciseServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutExerciseRepository, never()).save(any(WorkoutExercise.class));
+        verify(exerciseEventProducer, never()).publishExerciseAdded(any(ExerciseAddedEvent.class));
     }
 }
