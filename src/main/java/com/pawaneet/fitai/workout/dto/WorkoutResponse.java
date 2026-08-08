@@ -3,6 +3,7 @@ package com.pawaneet.fitai.workout.dto;
 import com.pawaneet.fitai.workout.entity.WorkoutStatus;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record WorkoutResponse(
@@ -11,6 +12,7 @@ public record WorkoutResponse(
         Instant endedAt,
         Long durationSeconds,
         WorkoutStatus status,
-        String notes
+        String notes,
+        List<WorkoutExerciseResponse> exercises
 ) {
 }

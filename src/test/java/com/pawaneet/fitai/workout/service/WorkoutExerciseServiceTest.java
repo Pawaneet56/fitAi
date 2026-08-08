@@ -5,7 +5,6 @@ import com.pawaneet.fitai.workout.dto.WorkoutExerciseResponse;
 import com.pawaneet.fitai.workout.entity.Workout;
 import com.pawaneet.fitai.workout.entity.WorkoutExercise;
 import com.pawaneet.fitai.workout.entity.WorkoutStatus;
-import com.pawaneet.fitai.workout.event.ExerciseAddedEvent;
 import com.pawaneet.fitai.workout.exception.CannotAddExerciseToCompletedWorkoutException;
 import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutExerciseMapper;
@@ -85,15 +84,7 @@ class WorkoutExerciseServiceTest {
         assertThat(savedWorkoutExercise.getExerciseName()).isEqualTo("Bench Press");
         assertThat(savedWorkoutExercise.getOrderIndex()).isEqualTo(3);
 
-        ArgumentCaptor<ExerciseAddedEvent> eventCaptor = ArgumentCaptor.forClass(ExerciseAddedEvent.class);
-        verify(exerciseEventProducer).publishExerciseAdded(eventCaptor.capture());
-
-        ExerciseAddedEvent event = eventCaptor.getValue();
-        assertThat(event.workoutId()).isEqualTo(workoutId);
-        assertThat(event.exerciseId()).isEqualTo(workoutExerciseId);
-        assertThat(event.exerciseName()).isEqualTo("Bench Press");
-        assertThat(event.orderIndex()).isEqualTo(3);
-        assertThat(event.createdAt()).isNotNull();
+        verify(exerciseEventProducer).publishExerciseAdded(savedWorkoutExercise);
     }
 
     @Test
@@ -129,7 +120,7 @@ class WorkoutExerciseServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutExerciseRepository, never()).save(any(WorkoutExercise.class));
-        verify(exerciseEventProducer, never()).publishExerciseAdded(any(ExerciseAddedEvent.class));
+        verify(exerciseEventProducer, never()).publishExerciseAdded(any(WorkoutExercise.class));
     }
 
     @Test
@@ -150,6 +141,6 @@ class WorkoutExerciseServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutExerciseRepository, never()).save(any(WorkoutExercise.class));
-        verify(exerciseEventProducer, never()).publishExerciseAdded(any(ExerciseAddedEvent.class));
+        verify(exerciseEventProducer, never()).publishExerciseAdded(any(WorkoutExercise.class));
     }
 }

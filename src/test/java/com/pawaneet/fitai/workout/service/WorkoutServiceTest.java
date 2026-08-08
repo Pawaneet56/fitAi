@@ -3,7 +3,6 @@ package com.pawaneet.fitai.workout.service;
 import com.pawaneet.fitai.workout.dto.WorkoutResponse;
 import com.pawaneet.fitai.workout.entity.Workout;
 import com.pawaneet.fitai.workout.entity.WorkoutStatus;
-import com.pawaneet.fitai.workout.event.WorkoutEndedEvent;
 import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutMapper;
 import com.pawaneet.fitai.workout.producer.WorkoutEventProducer;
@@ -152,14 +151,12 @@ class WorkoutServiceTest {
         assertThat(workout.getStatus()).isEqualTo(WorkoutStatus.COMPLETED);
         assertThat(workout.getEndedAt()).isNotNull();
 
-        ArgumentCaptor<WorkoutEndedEvent> eventCaptor = ArgumentCaptor.forClass(WorkoutEndedEvent.class);
-        verify(workoutEventProducer).publishWorkoutEnded(eventCaptor.capture());
+        ArgumentCaptor<Workout> workoutCaptor = ArgumentCaptor.forClass(Workout.class);
+        verify(workoutEventProducer).publishWorkoutEnded(workoutCaptor.capture());
 
-        WorkoutEndedEvent event = eventCaptor.getValue();
-        assertThat(event.workoutId()).isEqualTo(workoutId);
-        assertThat(event.startedAt()).isEqualTo(startedAt);
-        assertThat(event.endedAt()).isEqualTo(workout.getEndedAt());
-        assertThat(event.durationSeconds()).isGreaterThanOrEqualTo(900);
+        Workout capturedWorkout = workoutCaptor.getValue();
+        assertThat(capturedWorkout.getId()).isEqualTo(workoutId);
+        assertThat(capturedWorkout.getStatus()).isEqualTo(WorkoutStatus.COMPLETED);
     }
 
     @Test
@@ -172,7 +169,7 @@ class WorkoutServiceTest {
                 .hasMessageContaining(workoutId.toString());
 
         verify(workoutRepository, never()).save(any(Workout.class));
-        verify(workoutEventProducer, never()).publishWorkoutEnded(any(WorkoutEndedEvent.class));
+        verify(workoutEventProducer, never()).publishWorkoutEnded(any(Workout.class));
     }
 
     @Test
@@ -192,6 +189,6 @@ class WorkoutServiceTest {
                 .hasMessageContaining("409 CONFLICT");
 
         verify(workoutRepository, never()).save(any(Workout.class));
-        verify(workoutEventProducer, never()).publishWorkoutEnded(any(WorkoutEndedEvent.class));
+        verify(workoutEventProducer, never()).publishWorkoutEnded(any(Workout.class));
     }
 }

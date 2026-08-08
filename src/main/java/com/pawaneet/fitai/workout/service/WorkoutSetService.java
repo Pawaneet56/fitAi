@@ -10,6 +10,7 @@ import com.pawaneet.fitai.workout.exception.ConflictException;
 import com.pawaneet.fitai.workout.exception.ExerciseNotFoundException;
 import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutSetMapper;
+import com.pawaneet.fitai.workout.producer.SetEventProducer;
 import com.pawaneet.fitai.workout.repository.WorkoutExerciseRepository;
 import com.pawaneet.fitai.workout.repository.WorkoutRepository;
 import com.pawaneet.fitai.workout.repository.WorkoutSetRepository;
@@ -24,12 +25,10 @@ import java.util.UUID;
 public class WorkoutSetService {
 
     private final WorkoutRepository workoutRepository;
-
     private final WorkoutExerciseRepository workoutExerciseRepository;
-
     private final WorkoutSetRepository workoutSetRepository;
-
     private final WorkoutSetMapper workoutSetMapper;
+    private final SetEventProducer setEventProducer;
 
     @Transactional
     public WorkoutSetResponse addSet(UUID workoutId, UUID exerciseId, AddWorkoutSetRequest request) {
@@ -53,9 +52,11 @@ public class WorkoutSetService {
                 .durationSeconds(request.durationSeconds())
                 .notes(request.notes())
                 .build();
-        workoutExercise.getSets().add(workoutSet);
 
+        workoutExercise.addSet(workoutSet);
         WorkoutSet savedWorkoutSet = workoutSetRepository.save(workoutSet);
+
+        setEventProducer.publishSetAdded(savedWorkoutSet);
 
         return workoutSetMapper.toResponse(savedWorkoutSet);
     }

@@ -3,6 +3,7 @@ package com.pawaneet.fitai.workout.service;
 import com.pawaneet.fitai.workout.dto.StartWorkoutRequest;
 import com.pawaneet.fitai.workout.dto.WorkoutResponse;
 import com.pawaneet.fitai.workout.entity.Workout;
+import com.pawaneet.fitai.workout.entity.WorkoutExercise;
 import com.pawaneet.fitai.workout.entity.WorkoutStatus;
 import com.pawaneet.fitai.workout.event.WorkoutEndedEvent;
 import com.pawaneet.fitai.workout.event.WorkoutStartedEvent;
@@ -10,9 +11,11 @@ import com.pawaneet.fitai.workout.exception.WorkoutNotFoundException;
 import com.pawaneet.fitai.workout.mapper.WorkoutMapper;
 import com.pawaneet.fitai.workout.producer.WorkoutEventProducer;
 import com.pawaneet.fitai.workout.repository.WorkoutRepository;
+import com.pawaneet.fitai.workout.repository.WorkoutSetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -30,6 +33,8 @@ public class WorkoutService {
 
     private final WorkoutEventProducer workoutEventProducer;
 
+    private final WorkoutSetRepository workoutSetRepository;
+
     public WorkoutResponse startWorkout(StartWorkoutRequest request) {
         Workout workout = Workout.builder().startedAt(Instant.now()).status(WorkoutStatus.IN_PROGRESS).notes(request.notes()).build();
         Workout savedWorkout = workoutRepository.save(workout);
@@ -38,10 +43,13 @@ public class WorkoutService {
         return workoutMapper.toResponse(savedWorkout);
     }
 
+    @Transactional(readOnly = true)
     public WorkoutResponse getWorkout(UUID workoutId) {
-        return workoutRepository.findById(workoutId)
-                .map(workoutMapper::toResponse)
+        Workout workout = workoutRepository
+                .findWithExercisesById(workoutId)
                 .orElseThrow(() -> new WorkoutNotFoundException(workoutId));
+
+        return workoutMapper.toResponse(workout);
     }
 
     public List<WorkoutResponse> getWorkouts() {
