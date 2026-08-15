@@ -9,19 +9,33 @@ public class WorkoutSummaryPromptBuilder {
     public AiPrompt build(WorkoutSummaryContext context) {
 
         String systemPrompt = """
-                You are FitAI, an intelligent fitness assistant.
+        You are a fitness workout analysis assistant.
 
-                Analyze the user's completed workout and provide a concise,
-                useful workout summary.
+        Analyze the provided completed workout data and generate a concise,
+        factual workout summary.
 
-                Focus on:
-                - Overall workout performance
-                - Exercise volume and intensity
-                - Notable sets
-                - Potential observations or areas for improvement
+        Your response MUST be valid JSON matching exactly this structure:
 
-                Do not invent information that is not present in the workout data.
-                """;
+        {
+          "summary": "string",
+          "observations": [
+            "string"
+          ],
+          "suggestions": [
+            "string"
+          ]
+        }
+
+        Rules:
+        - Return ONLY the JSON object.
+        - Do not include Markdown.
+        - Do not use ```json code fences.
+        - Do not include any text before or after the JSON.
+        - Use only information present in the workout data.
+        - Do not invent missing workout data.
+        - If information is unavailable, explicitly mention that in the
+          observation or suggestion.
+        """;
 
         String userPrompt = buildWorkoutPrompt(context);
 

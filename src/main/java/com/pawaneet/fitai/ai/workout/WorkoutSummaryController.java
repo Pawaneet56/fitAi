@@ -1,6 +1,6 @@
 package com.pawaneet.fitai.ai.workout;
 
-import com.pawaneet.fitai.ai.dto.AiResponse;
+import com.pawaneet.fitai.ai.dto.WorkoutSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +15,7 @@ public class WorkoutSummaryController {
     private final WorkoutSummaryService workoutSummaryService;
 
     @GetMapping("/{workoutId}/summary")
-    public ResponseEntity<AiResponse> generateSummary(
+    public ResponseEntity<WorkoutSummaryResponse> generateSummary(
             @PathVariable UUID workoutId) {
 
         return ResponseEntity.ok(

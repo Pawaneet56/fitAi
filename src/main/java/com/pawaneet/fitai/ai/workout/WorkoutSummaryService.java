@@ -1,6 +1,9 @@
 package com.pawaneet.fitai.ai.workout;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pawaneet.fitai.ai.dto.AiResponse;
+import com.pawaneet.fitai.ai.dto.WorkoutSummaryResponse;
 import com.pawaneet.fitai.ai.service.AiService;
 import com.pawaneet.fitai.workout.entity.Workout;
 import com.pawaneet.fitai.workout.entity.WorkoutExercise;
@@ -25,9 +28,10 @@ public class WorkoutSummaryService {
     private final WorkoutExerciseRepository workoutExerciseRepository;
     private final AiService aiService;
     private final WorkoutSummaryPromptBuilder promptBuilder;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
-    public AiResponse generateSummary(UUID workoutId) {
+    public WorkoutSummaryResponse generateSummary(UUID workoutId) {
 
         Workout workout = workoutRepository.findById(workoutId)
                 .orElseThrow(() -> new WorkoutNotFoundException(workoutId));
@@ -50,9 +54,21 @@ public class WorkoutSummaryService {
                         .toList()
         );
 
-        return aiService.generate(
+        AiResponse aiResponse = aiService.generate(
                 promptBuilder.build(context)
         );
+
+        try {
+            return objectMapper.readValue(
+                    aiResponse.content(),
+                    WorkoutSummaryResponse.class
+            );
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(
+                    "Failed to parse AI workout summary",
+                    e
+            );
+        }
     }
 
     private WorkoutSummaryContext.ExerciseContext toExerciseContext(
