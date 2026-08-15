@@ -33,6 +33,7 @@ The project is intentionally built incrementally while following production desi
 - Spring Validation
 - Spring Actuator
 - Lombok
+- Google Gemini API / Google GenAI Java SDK
 
 Future additions:
 
@@ -86,7 +87,7 @@ The application is currently a **modular monolith**.
 
 Kafka is used for asynchronous processing within the same application.
 
-The current modules include workout functionality, Kafka integration, and analytics. The domain is modeled around a hierarchy:
+The current modules include workout functionality, Kafka integration, analytics, and AI functionality. The domain is modeled around a hierarchy:
 
 ```text
 Workout
@@ -95,6 +96,18 @@ Workout
 ```
 
 A workout owns multiple exercises, and each exercise owns multiple sets.
+
+AI functionality is kept in a dedicated `ai` module rather than being embedded inside the workout domain. Workout-specific AI capabilities live under the AI module, for example:
+
+```text
+ai/
+    client/
+    dto/
+    service/
+    workout/
+```
+
+The AI module exposes generic AI abstractions while workout-specific services build the context and response contracts required for workout analysis.
 
 ---
 
@@ -107,6 +120,15 @@ analytics/
 common/
 config/
 exception/
+
+ai/
+    client/
+    dto/
+    service/
+    workout/
+        controller/
+        dto/
+        service/
 
 kafka/
     config/
@@ -213,6 +235,9 @@ Current set-level data includes:
 - Automatic set numbering
 - Validation for workout/exercise/set requests
 - Prevent adding exercises/sets to completed workouts where applicable
+- Get Workout response includes nested exercises and their sets
+- Update Workout Set API
+- Workout Set update validation
 
 ---
 
@@ -248,6 +273,138 @@ Current event examples include:
 - `ExerciseAddedEvent`
 
 Kafka messages use the workout ID as the message key for workout/exercise events where appropriate.
+
+---
+
+## AI Integration
+
+The application now integrates Google Gemini through the Google GenAI Java SDK.
+
+The AI architecture intentionally separates generic AI infrastructure from workout-specific AI capabilities.
+
+### Generic AI abstraction
+
+```text
+AiService
+    ↓
+AiClient
+    ↓
+GeminiAiClient
+    ↓
+Google Gemini API
+```
+
+`AiClient` provides a provider-independent abstraction:
+
+```java
+AiResponse generate(AiPrompt prompt);
+```
+
+`GeminiAiClient` is the current implementation.
+
+The Gemini client is responsible for:
+
+- Calling Gemini
+- Combining system and user prompts
+- Configuring structured JSON responses
+- Returning the raw generated content through `AiResponse`
+
+The workout AI layer is responsible for:
+
+- Loading completed workout data
+- Building workout-specific context
+- Defining workout-specific response DTOs
+- Building the workout analysis prompt
+- Parsing the AI response into `WorkoutSummaryResponse`
+
+### AI DTOs
+
+Current generic AI DTOs:
+
+- `AiPrompt`
+- `AiResponse`
+
+`AiPrompt` contains:
+
+- `systemPrompt`
+- `userPrompt`
+- response schema used by the AI client
+
+`AiResponse` contains the generated content as a string.
+
+### Workout Summary
+
+A workout summary can only be generated for a **completed workout**.
+
+Attempting to generate a summary for an `IN_PROGRESS` workout results in a `409 Conflict` with the business message:
+
+```text
+Workout summary can only be generated for completed workouts
+```
+
+The workout summary response currently contains:
+
+```json
+{
+  "summary": "string",
+  "observations": [
+    "string"
+  ],
+  "suggestions": [
+    "string"
+  ]
+}
+```
+
+Gemini is configured at the client level with:
+
+- `responseMimeType("application/json")`
+- `responseSchema(...)`
+
+The schema requires:
+
+- `summary` as a string
+- `observations` as an array of strings
+- `suggestions` as an array of strings
+
+This means the application does not rely solely on prompt instructions to produce JSON.
+
+The system prompt focuses on **analysis behavior**, including:
+
+- Use only information present in the workout data.
+- Do not invent missing workout data.
+- Do not infer causes that are not supported by the data.
+- Clearly distinguish observations from assumptions.
+- Mention unavailable information explicitly when relevant.
+- Keep observations specific to the workout.
+- Keep suggestions practical and directly supported by available data.
+
+### AI Design Principle
+
+The long-term design principle is:
+
+> **Backend computes facts. AI interprets the facts.**
+
+Deterministic metrics such as total volume, total sets, exercise-level volume, highest weight, and other numerical analytics should eventually be calculated by backend services rather than delegated to the LLM.
+
+The AI should primarily interpret verified metrics and workout context to generate explanations, observations, and suggestions.
+
+This reduces hallucination risk and keeps deterministic business logic outside the LLM.
+
+### Current AI Validation
+
+A completed Push Day test workout was successfully summarized by Gemini with:
+
+- 3 exercises
+- 7 total sets
+- Bench Press progression
+- Incline Dumbbell Press progression
+- Overhead Press performance
+- Missing set-duration information
+
+The AI correctly interpreted the workout hierarchy and generated structured JSON.
+
+A limitation identified during testing is that the model did not reliably calculate total volume even when sufficient raw set data was available. This reinforces the decision to introduce deterministic workout metrics before asking the AI to interpret them.
 
 ---
 
@@ -435,6 +592,70 @@ Set events can be introduced later when there is a clear consumer/use case for t
 
 ---
 
+## Generate Workout Summary
+
+```text
+GET /api/workouts/{workoutId}/summary
+
+↓
+
+WorkoutSummaryController
+
+↓
+
+WorkoutSummaryService
+
+↓
+
+Load Workout
+
+↓
+
+Validate workout is COMPLETED
+
+↓
+
+Build WorkoutSummaryContext
+
+↓
+
+WorkoutSummaryPromptBuilder
+
+↓
+
+AiService
+
+↓
+
+AiClient
+
+↓
+
+GeminiAiClient
+
+↓
+
+Google Gemini API
+
+↓
+
+Structured JSON response
+
+↓
+
+AiResponse
+
+↓
+
+ObjectMapper
+
+↓
+
+WorkoutSummaryResponse
+```
+
+---
+
 # Analytics
 
 `AnalyticsService` currently receives and logs:
@@ -444,6 +665,17 @@ Set events can be introduced later when there is a clear consumer/use case for t
 - `ExerciseAddedEvent`
 
 The current implementation is intentionally simple. Analytics will eventually become a real business capability rather than only logging consumed events.
+
+A planned next capability is deterministic workout metrics, including metrics such as:
+
+- total sets
+- total volume
+- exercise-level volume
+- highest weight
+- average RIR
+- other progression-related measurements
+
+These metrics should be computed by backend code and can later be supplied to AI services as verified facts.
 
 ---
 
@@ -513,7 +745,9 @@ GET
 /api/workouts/{workoutId}
 ```
 
-Response:
+Response includes the workout and its nested exercises and sets.
+
+Example:
 
 ```json
 {
@@ -522,9 +756,29 @@ Response:
   "endedAt": "...",
   "durationSeconds": 3600,
   "status": "COMPLETED",
-  "notes": "Push Day"
+  "notes": "Push Day",
+  "exercises": [
+    {
+      "id": "...",
+      "exerciseName": "Barbell Bench Press",
+      "orderIndex": 1,
+      "sets": [
+        {
+          "id": "...",
+          "setNumber": 1,
+          "weight": 90.0,
+          "reps": 6,
+          "rir": 1,
+          "durationSeconds": null,
+          "notes": "Felt easy"
+        }
+      ]
+    }
+  ]
 }
 ```
+
+The nested response is assembled without simultaneously fetching multiple Hibernate bags in a single query. Exercise collections and set collections are loaded in separate queries to avoid `MultipleBagFetchException`.
 
 ---
 
@@ -633,6 +887,55 @@ Sets are ordered per exercise using an automatically incremented `setNumber`.
 
 ---
 
+## Update Workout Set
+
+PATCH
+
+```text
+/api/workouts/{workoutId}/exercises/{exerciseId}/sets/{setId}
+```
+
+The update API supports partial updates. Only fields provided in the request are changed.
+
+Example:
+
+```json
+{
+  "weight": 90
+}
+```
+
+The remaining fields retain their existing values.
+
+---
+
+## Generate Workout Summary
+
+GET
+
+```text
+/api/workouts/{workoutId}/summary
+```
+
+A summary can only be generated when the workout status is `COMPLETED`.
+
+Example response:
+
+```json
+{
+  "summary": "Completed a Push Day workout targeting chest and shoulders.",
+  "observations": [
+    "Barbell Bench Press was performed across 3 sets.",
+    "Overhead Press performance decreased from 8 to 7 reps on the final set."
+  ],
+  "suggestions": [
+    "Continue logging set-level data to track progression over time."
+  ]
+}
+```
+
+---
+
 # Design Patterns Used
 
 ## Layered Architecture
@@ -700,6 +1003,22 @@ Examples planned:
 
 ---
 
+## AI Client Abstraction
+
+AI provider integration is hidden behind the `AiClient` interface.
+
+Current implementation:
+
+```text
+AiClient
+   ↑
+GeminiAiClient
+```
+
+This allows the application to change or add AI providers without coupling workout business logic directly to the Gemini SDK.
+
+---
+
 # Development Principles
 
 This project intentionally prioritizes:
@@ -710,12 +1029,14 @@ This project intentionally prioritizes:
 - Production-ready design
 - Extensibility
 - Readability
+- Deterministic business logic outside the LLM
 
 Over:
 
 - Quick shortcuts
 - Large service classes
 - Tight coupling
+- Delegating deterministic calculations to AI
 
 ---
 
@@ -731,6 +1052,9 @@ Over:
 - Repository handles persistence only.
 - Kafka event contracts should be explicit and independent of JPA entities.
 - Avoid exposing persistence models as API or event contracts.
+- AI provider SDK usage belongs inside AI client implementations.
+- AI-specific response contracts belong in the appropriate AI/domain module.
+- Deterministic calculations should be performed by backend services rather than the LLM.
 
 ---
 
@@ -771,6 +1095,8 @@ Kafka
 localhost:9092
 ```
 
+Gemini is accessed through the Google GenAI Java SDK using the configured Gemini API credentials.
+
 ---
 
 # Current Validation / Business Rules
@@ -783,6 +1109,9 @@ localhost:9092
 - Exercise ordering is controlled by the backend.
 - Set numbering is controlled by the backend.
 - `durationSeconds` at the set level is optional.
+- Workout summary generation requires the workout to be `COMPLETED`.
+- AI workout summaries must be based only on available workout data.
+- AI should not infer unsupported causes from missing or incomplete workout data.
 
 ---
 
@@ -806,7 +1135,7 @@ localhost:9092
 
 ---
 
-## Phase 3 (Current)
+## Phase 3
 
 - ✅ Exercise logging
 - ✅ Sets
@@ -817,11 +1146,17 @@ localhost:9092
 
 ---
 
-## Phase 4
+## Phase 4 - AI and Analytics
 
-- AI workout summaries
-- AI recommendations
-- Long-term workout memory
+- ✅ Gemini AI integration
+- ✅ Generic `AiClient` abstraction
+- ✅ Structured Gemini JSON responses
+- ✅ Workout summary generation
+- ✅ Restrict summaries to completed workouts
+- ⬜ Deterministic workout metrics
+- ⬜ Feed verified metrics into AI summaries
+- ⬜ AI exercise recommendations
+- ⬜ Long-term workout memory
 
 ---
 
