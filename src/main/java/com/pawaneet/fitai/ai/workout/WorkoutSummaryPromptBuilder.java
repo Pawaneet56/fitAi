@@ -1,7 +1,11 @@
 package com.pawaneet.fitai.ai.workout;
 
+import com.google.genai.types.Schema;
 import com.pawaneet.fitai.ai.dto.AiPrompt;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
 
 @Component
 public class WorkoutSummaryPromptBuilder {
@@ -9,101 +13,68 @@ public class WorkoutSummaryPromptBuilder {
     public AiPrompt build(WorkoutSummaryContext context) {
 
         String systemPrompt = """
-        You are a fitness workout analysis assistant.
+                You are a fitness workout analysis assistant.
 
-        Analyze the provided completed workout data and generate a concise,
-        factual workout summary.
+                Analyze the provided completed workout data and generate a concise,
+                factual workout summary.
 
-        Your response MUST be valid JSON matching exactly this structure:
+                Rules:
+                - Use only information present in the workout data.
+                - Do not invent missing workout data.
+                - If information is unavailable, explicitly mention that in the
+                  observation or suggestion.
+                - Keep observations specific to the provided workout.
+                - Suggestions should be practical and relevant to the workout.
+                """;
 
-        {
-          "summary": "string",
-          "observations": [
-            "string"
-          ],
-          "suggestions": [
-            "string"
-          ]
-        }
+        String userPrompt = """
+                Generate a summary for the following completed workout:
 
-        Rules:
-        - Return ONLY the JSON object.
-        - Do not include Markdown.
-        - Do not use ```json code fences.
-        - Do not include any text before or after the JSON.
-        - Use only information present in the workout data.
-        - Do not invent missing workout data.
-        - If information is unavailable, explicitly mention that in the
-          observation or suggestion.
-        """;
+                %s
+                """.formatted(context);
 
-        String userPrompt = buildWorkoutPrompt(context);
-
-        return new AiPrompt(systemPrompt, userPrompt);
+        return new AiPrompt(
+                systemPrompt,
+                userPrompt,
+                workoutSummarySchema()
+        );
     }
 
-    private String buildWorkoutPrompt(WorkoutSummaryContext context) {
+    private Schema workoutSummarySchema() {
 
-        StringBuilder prompt = new StringBuilder();
+        return Schema.builder()
+                .type("OBJECT")
+                .properties(Map.of(
+                        "summary",
+                        Schema.builder()
+                                .type("STRING")
+                                .build(),
 
-        prompt.append("Workout ID: ")
-                .append(context.workoutId())
-                .append("\n");
+                        "observations",
+                        Schema.builder()
+                                .type("ARRAY")
+                                .items(
+                                        Schema.builder()
+                                                .type("STRING")
+                                                .build()
+                                )
+                                .build(),
 
-        prompt.append("Started At: ")
-                .append(context.startedAt())
-                .append("\n");
-
-        prompt.append("Ended At: ")
-                .append(context.endedAt())
-                .append("\n");
-
-        if (context.notes() != null) {
-            prompt.append("Workout Notes: ")
-                    .append(context.notes())
-                    .append("\n");
-        }
-
-        prompt.append("\nExercises:\n");
-
-        for (WorkoutSummaryContext.ExerciseContext exercise : context.exercises()) {
-
-            prompt.append("\n")
-                    .append(exercise.orderIndex())
-                    .append(". ")
-                    .append(exercise.exerciseName())
-                    .append("\n");
-
-            for (WorkoutSummaryContext.SetContext set : exercise.sets()) {
-
-                prompt.append("   Set ")
-                        .append(set.setNumber())
-                        .append(": ")
-                        .append(set.weight())
-                        .append(" kg × ")
-                        .append(set.reps())
-                        .append(" reps");
-
-                if (set.rir() != null) {
-                    prompt.append(", RIR ")
-                            .append(set.rir());
-                }
-
-                if (set.durationSeconds() != null) {
-                    prompt.append(", duration ")
-                            .append(set.durationSeconds())
-                            .append(" seconds");
-                }
-
-                if (set.notes() != null) {
-                    prompt.append(", notes: ")
-                            .append(set.notes());
-                }
-
-                prompt.append("\n");
-            }
-        }
-
-        return prompt.toString();
+                        "suggestions",
+                        Schema.builder()
+                                .type("ARRAY")
+                                .items(
+                                        Schema.builder()
+                                                .type("STRING")
+                                                .build()
+                                )
+                                .build()
+                ))
+                .required(List.of(
+                        "summary",
+                        "observations",
+                        "suggestions"
+                ))
+                .build();
     }
 }

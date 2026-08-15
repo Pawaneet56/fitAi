@@ -1,6 +1,7 @@
 package com.pawaneet.fitai.ai.client;
 
 import com.google.genai.Client;
+import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
 import com.pawaneet.fitai.ai.dto.AiPrompt;
 import com.pawaneet.fitai.ai.dto.AiResponse;
@@ -29,10 +30,15 @@ public class GeminiAiClient implements AiClient {
                 prompt.userPrompt()
         );
 
+        GenerateContentConfig config = GenerateContentConfig.builder()
+                .responseMimeType("application/json")
+                .responseSchema(prompt.responseSchema())
+                .build();
+
         GenerateContentResponse response = client.models.generateContent(
                 "gemini-3.6-flash",
                 combinedPrompt,
-                null
+                config
         );
 
         return new AiResponse(response.text());
