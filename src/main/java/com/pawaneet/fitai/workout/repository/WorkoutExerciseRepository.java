@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,4 +21,14 @@ public interface WorkoutExerciseRepository extends JpaRepository<WorkoutExercise
     int findMaxOrderIndexByWorkoutId(@Param("workoutId") UUID workoutId);
 
     Optional<WorkoutExercise> findByIdAndWorkoutId(UUID id, UUID workoutId);
+    @Query("""
+        select distinct workoutExercise
+        from WorkoutExercise workoutExercise
+        left join fetch workoutExercise.sets
+        where workoutExercise.workout.id = :workoutId
+        order by workoutExercise.orderIndex
+        """)
+    List<WorkoutExercise> findByWorkoutIdWithSets(
+            @Param("workoutId") UUID workoutId
+    );
 }
