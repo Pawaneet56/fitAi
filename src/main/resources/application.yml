@@ -53,3 +53,8 @@ app:
       workout-ended: workout-ended
       exercise-added: exercise-added
       set-added: set-added
+
+fitai:
+  ai:
+    file-search:
+      store-name: fileSearchStores/fitaitest-uytygs7fy1pp

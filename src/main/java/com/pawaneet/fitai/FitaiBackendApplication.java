@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
+
 public class FitaiBackendApplication {
 
 	public static void main(String[] args) {
