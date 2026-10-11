@@ -58,10 +58,11 @@ class WorkoutServiceTest {
                 null,
                 null,
                 WorkoutStatus.IN_PROGRESS,
-                "Push Day"
+                "Push Day",
+                List.of()
         );
 
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
+        when(workoutRepository.findWithExercisesById(workoutId)).thenReturn(Optional.of(workout));
         when(workoutMapper.toResponse(workout)).thenReturn(response);
 
         WorkoutResponse actualResponse = workoutService.getWorkout(workoutId);
@@ -72,7 +73,7 @@ class WorkoutServiceTest {
     @Test
     void getWorkoutThrowsWorkoutNotFoundWhenWorkoutDoesNotExist() {
         UUID workoutId = UUID.randomUUID();
-        when(workoutRepository.findById(workoutId)).thenReturn(Optional.empty());
+        when(workoutRepository.findWithExercisesById(workoutId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> workoutService.getWorkout(workoutId))
                 .isInstanceOf(WorkoutNotFoundException.class)
@@ -102,7 +103,8 @@ class WorkoutServiceTest {
                 null,
                 null,
                 WorkoutStatus.IN_PROGRESS,
-                null
+                null,
+                List.of()
         );
         WorkoutResponse secondResponse = new WorkoutResponse(
                 secondWorkoutId,
@@ -110,7 +112,8 @@ class WorkoutServiceTest {
                 secondStartedAt.plusSeconds(1800),
                 1800L,
                 WorkoutStatus.COMPLETED,
-                null
+                null,
+                List.of()
         );
 
         when(workoutRepository.findAllByOrderByStartedAtDesc()).thenReturn(List.of(firstWorkout, secondWorkout));
@@ -138,7 +141,8 @@ class WorkoutServiceTest {
                 Instant.now(),
                 900L,
                 WorkoutStatus.COMPLETED,
-                "Push Day"
+                "Push Day",
+                List.of()
         );
 
         when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));

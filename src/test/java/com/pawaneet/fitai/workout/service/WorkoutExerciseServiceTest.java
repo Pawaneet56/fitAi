@@ -60,7 +60,8 @@ class WorkoutExerciseServiceTest {
         WorkoutExerciseResponse response = new WorkoutExerciseResponse(
                 workoutExerciseId,
                 "Bench Press",
-                3
+                3,
+                java.util.List.of()
         );
 
         when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
@@ -96,7 +97,7 @@ class WorkoutExerciseServiceTest {
                 .status(WorkoutStatus.IN_PROGRESS)
                 .build();
         AddWorkoutExerciseRequest request = new AddWorkoutExerciseRequest("Squat");
-        WorkoutExerciseResponse response = new WorkoutExerciseResponse(UUID.randomUUID(), "Squat", 1);
+        WorkoutExerciseResponse response = new WorkoutExerciseResponse(UUID.randomUUID(), "Squat", 1, java.util.List.of());
 
         when(workoutRepository.findById(workoutId)).thenReturn(Optional.of(workout));
         when(workoutExerciseRepository.findMaxOrderIndexByWorkoutId(workoutId)).thenReturn(0);

@@ -1,6 +1,7 @@
 package com.pawaneet.fitai.ai.workout;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.pawaneet.fitai.analytics.service.WorkoutMetricsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pawaneet.fitai.ai.dto.AiResponse;
 import com.pawaneet.fitai.ai.dto.WorkoutSummaryResponse;
@@ -23,6 +24,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class WorkoutSummaryService {
+
+    private final WorkoutMetricsService metricsService;
 
     private final WorkoutRepository workoutRepository;
     private final WorkoutExerciseRepository workoutExerciseRepository;
@@ -51,7 +54,8 @@ public class WorkoutSummaryService {
                 workout.getNotes(),
                 exercises.stream()
                         .map(this::toExerciseContext)
-                        .toList()
+                        .toList(),
+                metricsService.calculate(exercises)
         );
 
         AiResponse aiResponse = aiService.generate(

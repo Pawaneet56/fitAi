@@ -3,13 +3,15 @@ package com.pawaneet.fitai.ai.workout;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.pawaneet.fitai.analytics.dto.WorkoutMetrics;
 
 public record WorkoutSummaryContext(
         UUID workoutId,
         Instant startedAt,
         Instant endedAt,
         String notes,
-        List<ExerciseContext> exercises
+        List<ExerciseContext> exercises,
+        WorkoutMetrics metrics
 ) {
 
     public record ExerciseContext(

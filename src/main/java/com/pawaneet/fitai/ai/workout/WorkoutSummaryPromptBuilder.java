@@ -20,6 +20,13 @@ public class WorkoutSummaryPromptBuilder {
 
                 Rules:
                 - Use only information present in the workout data.
+                - Use the backend-computed metrics as authoritative numerical facts.
+                  Do not recalculate totals or averages from the raw sets.
+                - Total volume is the sum of logged weight multiplied by reps.
+                  Weight units are unspecified; do not assume kilograms or pounds.
+                - Average RIR includes only sets with a recorded RIR, weighted equally
+                  per set. A null average RIR or highest weight means unavailable.
+                - A single workout does not establish progress over time.
                 - Do not invent missing workout data.
                 - If information is unavailable, explicitly mention that in the
                   observation or suggestion.

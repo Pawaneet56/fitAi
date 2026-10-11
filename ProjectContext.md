@@ -385,7 +385,7 @@ The long-term design principle is:
 
 > **Backend computes facts. AI interprets the facts.**
 
-Deterministic metrics such as total volume, total sets, exercise-level volume, highest weight, and other numerical analytics should eventually be calculated by backend services rather than delegated to the LLM.
+`WorkoutMetricsService` now computes total exercises, sets, reps, volume, highest weight, and average RIR in Java. The summary context includes these verified metrics alongside the raw exercise/set data.
 
 The AI should primarily interpret verified metrics and workout context to generate explanations, observations, and suggestions.
 
@@ -666,16 +666,16 @@ WorkoutSummaryResponse
 
 The current implementation is intentionally simple. Analytics will eventually become a real business capability rather than only logging consumed events.
 
-A planned next capability is deterministic workout metrics, including metrics such as:
+`GET /api/workouts/{workoutId}/metrics` now exposes deterministic workout and exercise metrics:
 
 - total sets
 - total volume
 - exercise-level volume
 - highest weight
 - average RIR
-- other progression-related measurements
+- total reps
 
-These metrics should be computed by backend code and can later be supplied to AI services as verified facts.
+Volume is the sum of logged weight × reps, without assumed weight units or load multipliers. Average RIR excludes missing values and weights each recorded set equally. Empty workouts return zero totals; highest weight and average RIR are null when unavailable. Metrics are calculated on demand for completed or in-progress workouts and supplied to AI summaries as verified facts. Historical progression measurements remain planned.
 
 ---
 
@@ -1153,8 +1153,8 @@ Gemini is accessed through the Google GenAI Java SDK using the configured Gemini
 - ✅ Structured Gemini JSON responses
 - ✅ Workout summary generation
 - ✅ Restrict summaries to completed workouts
-- ⬜ Deterministic workout metrics
-- ⬜ Feed verified metrics into AI summaries
+- ✅ Deterministic workout metrics
+- ✅ Feed verified metrics into AI summaries
 - ⬜ AI exercise recommendations
 - ⬜ Long-term workout memory
 
