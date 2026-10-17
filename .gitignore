@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Local JavaScript dependency cache
+.pnpm-store/

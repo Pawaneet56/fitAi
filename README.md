@@ -4,11 +4,11 @@ AI-powered workout tracking platform.
 
 ## Features
 
-- Workout logging
+- React workout workspace and session history
+- Workout, exercise, and set logging
+- Backend-calculated workout and exercise metrics
+- Structured AI workout summaries with Google Gemini
 - Kafka event streaming
-- AI workout summaries
-- Analytics
-- Recommendations
 
 ## Tech Stack
 
@@ -16,7 +16,7 @@ AI-powered workout tracking platform.
 - Spring Boot
 - Kafka
 - PostgreSQL
-- Angular
+- React + TypeScript + Vite
 - Docker
 
 ## Workout metrics
@@ -36,4 +36,31 @@ the raw sets. No metrics are persisted; they reflect the current workout data.
 
 ## Architecture
 
-(We'll add diagram later)
+React + TypeScript frontend → Spring Boot REST API → PostgreSQL.
+Kafka handles workout events, and Gemini generates summaries using verified
+workout metrics. The backend is organized as a modular monolith.
+
+## Frontend
+
+The React app lives in [`frontend/`](frontend/README.md). Run `pnpm install`
+and `pnpm dev` in that directory, with the backend running on port 8080.
+Open http://127.0.0.1:5173 to log workouts, view metrics, and request AI summaries.
+
+## Screenshots
+
+Captured from the running React frontend using the local test workouts.
+
+<table>
+  <tr>
+    <th>Workout workspace and metrics</th>
+    <th>Session history</th>
+    <th>Start a workout</th>
+  </tr>
+  <tr>
+    <td valign="top"><a href="docs/screenshots/workout-workspace.jpg"><img src="docs/screenshots/workout-workspace.jpg" alt="FitAI workout workspace displaying logged bench press sets and calculated session metrics" width="280" /></a></td>
+    <td valign="top"><a href="docs/screenshots/session-history.jpg"><img src="docs/screenshots/session-history.jpg" alt="FitAI session history showing completed and in-progress workouts" width="280" /></a></td>
+    <td valign="top"><a href="docs/screenshots/start-workout.jpg"><img src="docs/screenshots/start-workout.jpg" alt="FitAI new workout dialog with workout name input" width="280" /></a></td>
+  </tr>
+</table>
+
+Select a screenshot to view it at full size.
