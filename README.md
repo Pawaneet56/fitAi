@@ -42,8 +42,8 @@ workout metrics. The backend is organized as a modular monolith.
 
 ## Frontend
 
-The React app lives in [`frontend/`](frontend/README.md). Run `pnpm install`
-and `pnpm dev` in that directory, with the backend running on port 8080.
+The React app lives in [`frontend/`](frontend/README.md). Run `npm install`
+and `npm run dev` in that directory, with the backend running on port 8080.
 Open http://127.0.0.1:5173 to log workouts, view metrics, and request AI summaries.
 
 ## Screenshots
@@ -64,3 +64,10 @@ Captured from the running React frontend using the local test workouts.
 </table>
 
 Select a screenshot to view it at full size.
+
+### AI workout summary
+
+Gemini interprets the logged workout and backend-calculated metrics to provide
+a summary, observations, and suggestions for the next session.
+
+![AI workout summary with observations and suggestions based on logged workout data](docs/screenshots/ai-workout-summary.png)

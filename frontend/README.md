@@ -4,15 +4,15 @@ React + TypeScript + Vite interface for the existing FitAI Spring Boot backend.
 
 ## Run locally
 
-Use Node.js 22 or newer and pnpm 11 (or npm).
+Use Node.js 22 or newer, which includes npm.
 
 ```bash
 cd frontend
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-With npm, use `npm install` and `npm run dev` instead.
+Use npm consistently for this project; `package-lock.json` records the dependency versions.
 
 Open http://127.0.0.1:5173. Run the Spring Boot backend at http://localhost:8080.
 Vite proxies `/api` to the backend, so no CORS changes are required for local
@@ -36,7 +36,7 @@ sets can have zero weight.
 ## Production build
 
 ```bash
-pnpm build
+npm run build
 ```
 
 Output is in `dist/`. A production host must forward `/api` to the backend;
