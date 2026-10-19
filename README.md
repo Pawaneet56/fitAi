@@ -7,7 +7,8 @@ AI-powered workout tracking platform.
 - React workout workspace and session history
 - Workout, exercise, and set logging
 - Backend-calculated workout and exercise metrics
-- Structured AI workout summaries with Google Gemini
+- Structured AI workout summaries retrieved from Google Gemini File Search
+- Kafka-driven indexing of completed workouts for the fixed user `user1`
 - Kafka event streaming
 
 ## Tech Stack
@@ -31,14 +32,30 @@ workout, including in-progress workouts. Unknown workout IDs return 404.
 - Empty workouts have zero totals. Highest weight and average RIR are `null`
   when there are no relevant recorded values.
 
-Completed-workout AI summaries receive these backend-computed metrics alongside
-the raw sets. No metrics are persisted; they reflect the current workout data.
+Metrics are calculated on demand from PostgreSQL. When a workout is completed,
+a Kafka consumer uploads a document containing the raw sets and verified metrics
+to Gemini File Search. Summary requests retrieve stored documents instead of
+embedding the workout or its full history in every generation prompt.
 
 ## Architecture
 
 React + TypeScript frontend → Spring Boot REST API → PostgreSQL.
 Kafka handles workout events, and Gemini generates summaries using verified
 workout metrics. The backend is organized as a modular monolith.
+
+## Workout indexing and AI summaries
+
+This version uses a fixed backend identity, `user1`. Completing a workout saves
+an indexing job in PostgreSQL. A scheduled dispatcher publishes it through Kafka,
+and a consumer uploads a dated, user-tagged document to Gemini File Search.
+The frontend shows preparation status until the document is ready.
+
+For older completed workouts, choose **Prepare workout insights**, or call
+`POST /api/workouts/{id}/index`. Read status at `GET /api/workouts/{id}/index`.
+Summary generation retrieves user1's relevant stored documents through File Search.
+
+See [the indexing flow and setup](docs/workout-indexing.md) for configuration,
+retry behavior, migration of existing workouts, and current limitations.
 
 ## Frontend
 

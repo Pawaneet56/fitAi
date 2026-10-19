@@ -11,3 +11,5 @@ export async function api<T>(path: string, method = 'GET', body?: unknown, signa
   }
   return response.json();
 }
+
+export type IndexStatus = { workoutId: string; userId: string; status: 'NOT_QUEUED' | 'PENDING' | 'INDEXING' | 'READY' | 'FAILED'; indexedAt: string | null; failedAttempts: number };

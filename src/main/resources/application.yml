@@ -56,5 +56,8 @@ app:
 
 fitai:
   ai:
+    model: ${GEMINI_MODEL:gemini-3.6-flash}
     file-search:
-      store-name: fileSearchStores/fitaitest-uytygs7fy1pp
+      store-name: ${GEMINI_FILE_SEARCH_STORE:fileSearchStores/fitaitest-uytygs7fy1pp}
+      dispatch-delay-ms: 10000
+      retry-delay-seconds: 30

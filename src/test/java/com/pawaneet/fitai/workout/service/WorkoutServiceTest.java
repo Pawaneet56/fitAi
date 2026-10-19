@@ -39,6 +39,9 @@ class WorkoutServiceTest {
     @Mock
     private WorkoutEventProducer workoutEventProducer;
 
+    @Mock
+    private com.pawaneet.fitai.ai.indexing.WorkoutIndexJobRepository indexingJobs;
+
     @InjectMocks
     private WorkoutService workoutService;
 
@@ -158,6 +161,8 @@ class WorkoutServiceTest {
         ArgumentCaptor<Workout> workoutCaptor = ArgumentCaptor.forClass(Workout.class);
         verify(workoutEventProducer).publishWorkoutEnded(workoutCaptor.capture());
 
+        verify(indexingJobs).save(org.mockito.ArgumentMatchers.argThat(job -> job.getWorkoutId().equals(workoutId)
+                && job.getUserId().equals("user1") && job.getStatus().equals("PENDING")));
         Workout capturedWorkout = workoutCaptor.getValue();
         assertThat(capturedWorkout.getId()).isEqualTo(workoutId);
         assertThat(capturedWorkout.getStatus()).isEqualTo(WorkoutStatus.COMPLETED);
@@ -194,5 +199,25 @@ class WorkoutServiceTest {
 
         verify(workoutRepository, never()).save(any(Workout.class));
         verify(workoutEventProducer, never()).publishWorkoutEnded(any(Workout.class));
+    }
+
+    @Test
+    void completionQueuesIndexJobAndDefersAnalyticsEventUntilCommit() {
+        UUID id = UUID.randomUUID();
+        Workout workout = Workout.builder().id(id).startedAt(Instant.now().minusSeconds(60))
+                .status(WorkoutStatus.IN_PROGRESS).build();
+        when(workoutRepository.findById(id)).thenReturn(Optional.of(workout));
+        when(workoutRepository.save(any(Workout.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            workoutService.endWorkout(id);
+            verify(indexingJobs).save(any(com.pawaneet.fitai.ai.indexing.WorkoutIndexJob.class));
+            verify(workoutEventProducer, org.mockito.Mockito.never()).publishWorkoutEnded(any());
+            org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+            verify(workoutEventProducer).publishWorkoutEnded(workout);
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

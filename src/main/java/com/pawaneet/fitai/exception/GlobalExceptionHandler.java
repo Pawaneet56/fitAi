@@ -17,6 +17,25 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(com.google.genai.errors.ApiException.class)
+    public ResponseEntity<ApiErrorResponse> handleGeminiError(
+            com.google.genai.errors.ApiException exception, HttpServletRequest request) {
+        HttpStatus status = exception.code() == 429 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_GATEWAY;
+        String message = exception.code() == 429
+                ? "Gemini quota exceeded. Try again after the quota resets or check your Gemini API billing."
+                : "Gemini could not complete the request. Please try again later.";
+        return ResponseEntity.status(status).body(new ApiErrorResponse(Instant.now(), status.value(),
+                status.getReasonPhrase(), message, request.getRequestURI()));
+    }
+
+    @ExceptionHandler(com.google.genai.errors.GenAiIOException.class)
+    public ResponseEntity<ApiErrorResponse> handleGeminiConnectionError(
+            com.google.genai.errors.GenAiIOException exception, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
+        return ResponseEntity.status(status).body(new ApiErrorResponse(Instant.now(), status.value(),
+                status.getReasonPhrase(), "Gemini could not be reached. Please try again later.", request.getRequestURI()));
+    }
+
     @ExceptionHandler(WorkoutNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleWorkoutNotFound(
             WorkoutNotFoundException exception,

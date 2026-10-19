@@ -1,5 +1,12 @@
 # FitAI Backend - Project Context
 
+> Current update: the single-user indexing/retrieval implementation uses fixed
+> identity `user1`. Completed workouts are queued transactionally, indexed through
+> Kafka into Gemini File Search, and retrieved for summaries. The earlier direct
+> prompt examples below describe the previous implementation. See
+> [workout-indexing.md](docs/workout-indexing.md) for the current flow and limits.
+
+
 ## Project Vision
 
 FitAI is a production-grade backend application built to learn and demonstrate modern backend engineering practices.

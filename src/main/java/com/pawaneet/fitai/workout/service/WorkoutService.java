@@ -1,5 +1,9 @@
 package com.pawaneet.fitai.workout.service;
 
+import com.pawaneet.fitai.ai.indexing.WorkoutIndexJob;
+import com.pawaneet.fitai.ai.indexing.WorkoutIndexJobRepository;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.pawaneet.fitai.workout.dto.StartWorkoutRequest;
 import com.pawaneet.fitai.workout.dto.WorkoutResponse;
 import com.pawaneet.fitai.workout.entity.Workout;
@@ -28,6 +32,7 @@ import java.util.UUID;
 public class WorkoutService {
 
     private final WorkoutRepository workoutRepository;
+    private final WorkoutIndexJobRepository indexingJobs;
 
     private final WorkoutMapper workoutMapper;
 
@@ -59,6 +64,7 @@ public class WorkoutService {
                 .toList();
     }
 
+    @Transactional
     public WorkoutResponse endWorkout(UUID workoutId) {
         Workout workout = workoutRepository.findById(workoutId)
                 .orElseThrow(() -> new WorkoutNotFoundException(workoutId));
@@ -73,7 +79,16 @@ public class WorkoutService {
 
         Workout savedWorkout = workoutRepository.save(workout);
 
-        workoutEventProducer.publishWorkoutEnded(savedWorkout);
+        indexingJobs.save(new WorkoutIndexJob(savedWorkout.getId()));
+        // Analytics publication stays independent; indexing is durably queued in this transaction.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override public void afterCommit() { workoutEventProducer.publishWorkoutEnded(savedWorkout); }
+                    });
+        } else {
+            workoutEventProducer.publishWorkoutEnded(savedWorkout);
+        }
 
         return workoutMapper.toResponse(savedWorkout);
     }

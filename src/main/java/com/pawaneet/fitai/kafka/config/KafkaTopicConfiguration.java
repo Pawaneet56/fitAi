@@ -7,6 +7,12 @@ import org.springframework.kafka.config.TopicBuilder;
 
 @Configuration
 public class KafkaTopicConfiguration {
+    @Bean
+    public NewTopic workoutIndexRequestedTopic() {
+        return TopicBuilder.name(com.pawaneet.fitai.ai.indexing.WorkoutIndexEventProducer.TOPIC)
+                .partitions(3).replicas(1).build();
+    }
+
 
     @Bean
     public NewTopic workoutStartedTopic(KafkaTopicProperties topics) {

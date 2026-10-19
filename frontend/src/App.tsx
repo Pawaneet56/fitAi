@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, ArrowDownLeft, ArrowRight, Check, ChevronRight, Clock3, Dumbbell, Flame, History, LayoutDashboard, LoaderCircle, Plus, RefreshCw, Sparkles, TrendingUp, X, Pencil, CheckCircle2 } from 'lucide-react';
-import { api, type Exercise, type Metrics, type Summary, type Workout, type WorkoutSet } from './api';
+import { api, type Exercise, type Metrics, type Summary, type Workout, type WorkoutSet, type IndexStatus } from './api';
 
 const number = (value: number | null | undefined) => value == null ? '—' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
 const date = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -12,6 +12,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [view, setView] = useState<'workspace' | 'history'>('workspace');
   const [loading, setLoading] = useState(true);
@@ -35,7 +36,7 @@ export default function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    requestId.current += 1; setSummaryBusy(false); setSummary(null); setWorkout(null); setMetrics(null);
+    requestId.current += 1; setSummaryBusy(false); setSummary(null); setWorkout(null); setMetrics(null); setIndexStatus(null);
     if (!selected) return;
     setDetailLoading(true);
     Promise.all([api<Workout>(`/${selected}`, 'GET', undefined, controller.signal), api<Metrics>(`/${selected}/metrics`, 'GET', undefined, controller.signal)])
@@ -44,6 +45,27 @@ export default function App() {
       .finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
     return () => controller.abort();
   }, [selected, revision]);
+
+  useEffect(() => {
+    if (!workout || workout.status !== 'COMPLETED') return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const status = await api<IndexStatus>(`/${workout.id}/index`, 'GET', undefined, controller.signal);
+        if (controller.signal.aborted) return;
+        setIndexStatus(status);
+        if (status.status !== 'READY') timer = setTimeout(poll, 5000);
+      } catch (e) {
+        if (!controller.signal.aborted) {
+          setError(e instanceof Error ? e.message : 'Unable to check insight preparation.');
+          timer = setTimeout(poll, 15000);
+        }
+      }
+    };
+    void poll();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [workout]);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!dialog) return;
@@ -74,7 +96,15 @@ export default function App() {
   async function generateSummary() {
     if (!workout) return;
     const id = ++requestId.current; setSummaryBusy(true); setError('');
-    try { const data = await api<Summary>(`/${workout.id}/summary`); if (id === requestId.current) setSummary(data); }
+    try {
+      if (indexStatus?.status !== 'READY') {
+        const status = await api<IndexStatus>(`/${workout.id}/index`, 'POST');
+        if (id === requestId.current) setIndexStatus(status);
+        return;
+      }
+      const data = await api<Summary>(`/${workout.id}/summary`);
+      if (id === requestId.current) setSummary(data);
+    }
     catch (e) { if (id === requestId.current) setError(e instanceof Error ? e.message : 'Unable to generate summary.'); }
     finally { if (id === requestId.current) setSummaryBusy(false); }
   }
@@ -87,6 +117,7 @@ export default function App() {
   }, [dialog]);
 
   const openDialog = (next: Dialog) => { setError(''); setDialog(next); };
+  const indexPending = !!indexStatus && ['PENDING', 'INDEXING'].includes(indexStatus.status);
   const active = workout?.status === 'IN_PROGRESS';
   const completed = workouts.filter(w => w.status === 'COMPLETED').length;
   const selectWorkout = (id: string) => { setError(''); setSelected(id); setView('workspace'); };
@@ -114,7 +145,7 @@ export default function App() {
             </section>}
           </>}
         </section><aside className="insights-column"><div className="section-heading"><div><h2>The numbers</h2><p>Calculated from your logged sets.</p></div><Activity size={19} className="muted"/></div><div className="metrics-grid"><Metric icon={<Dumbbell size={17}/>} label="TOTAL VOLUME" value={number(metrics?.totalVolume)} note="Logged weight × reps"/><Metric icon={<Flame size={17}/>} label="TOTAL SETS" value={number(metrics?.totalSets)} note={`${number(metrics?.totalExercises)} exercises`}/><Metric icon={<TrendingUp size={17}/>} label="HIGHEST WEIGHT" value={number(metrics?.highestWeight)} note="Your logged weight unit"/><Metric icon={<ArrowDownLeft size={17}/>} label="AVERAGE RIR" value={number(metrics?.averageRir)} note="Recorded sets only"/></div><div className="reps-strip"><span>Total reps</span><strong>{number(metrics?.totalReps)}</strong></div>
-          <section className="ai-panel"><div className="ai-heading"><span className="spark-icon"><Sparkles size={19}/></span><h3>A little perspective.</h3><span className="ai-badge">AI</span></div>{summary ? <div className="summary"><p>{summary.summary}</p><h4>WHAT STANDS OUT</h4><ul>{summary.observations.map((s,i)=><li key={i}>{s}</li>)}</ul><h4>FOR YOUR NEXT SESSION</h4><ul>{summary.suggestions.map((s,i)=><li key={i}>{s}</li>)}</ul></div> : <><p>Your effort tells a story. Get a thoughtful summary grounded in your session’s numbers.</p><div className="ai-note"><span>✧</span><span>{active ? 'Finish your workout to unlock your summary.' : workout ? 'Your session is ready for a closer look.' : 'Log a workout to discover your insights.'}</span></div></>}<button className="button ai-button" disabled={!workout || active || summaryBusy || detailLoading} onClick={generateSummary}>{summaryBusy ? <LoaderCircle size={16} className="spin"/> : <Sparkles size={16}/>} {summaryBusy ? 'Finding your insights…' : summary ? 'Regenerate summary' : 'Generate workout summary'}{!summaryBusy && <ArrowRight size={16}/>}</button><small>Powered by Gemini · Based on your logged data</small></section>
+          <section className="ai-panel"><div className="ai-heading"><span className="spark-icon"><Sparkles size={19}/></span><h3>A little perspective.</h3><span className="ai-badge">AI</span></div>{summary ? <div className="summary"><p>{summary.summary}</p><h4>WHAT STANDS OUT</h4><ul>{summary.observations.map((s,i)=><li key={i}>{s}</li>)}</ul><h4>FOR YOUR NEXT SESSION</h4><ul>{summary.suggestions.map((s,i)=><li key={i}>{s}</li>)}</ul></div> : <><p>Your effort tells a story. Get a thoughtful summary grounded in your session’s numbers.</p><div className="ai-note"><span>✧</span><span>{active ? 'Finish your workout to unlock your summary.' : workout ? indexStatus?.status === 'FAILED' ? 'Insight preparation failed and will retry automatically. You can also retry now.' : indexPending ? 'Preparing insights from your saved workout…' : indexStatus?.status === 'NOT_QUEUED' ? 'Prepare this saved session to unlock your insights.' : 'Your session is ready for a closer look.' : 'Log a workout to discover your insights.'}</span></div></>}<button className="button ai-button" disabled={!workout || active || summaryBusy || detailLoading || indexPending || !indexStatus} onClick={generateSummary}>{summaryBusy ? <LoaderCircle size={16} className="spin"/> : <Sparkles size={16}/>} {indexPending ? 'Preparing insights…' : summaryBusy ? 'Working on your insights…' : indexStatus?.status === 'FAILED' ? 'Retry insight preparation' : indexStatus?.status === 'NOT_QUEUED' ? 'Prepare workout insights' : summary ? 'Regenerate summary' : 'Generate workout summary'}{!summaryBusy && <ArrowRight size={16}/>}</button><small>Powered by Gemini · Based on your logged data</small></section>
         </aside></div></>}
         <footer><span className="footer-brand"><Activity size={16}/> fitai</span><span>Small steps. Honest numbers. Stronger sessions.</span><span>MADE FOR THE WORK</span></footer>
       </main>
